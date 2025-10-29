@@ -96,7 +96,7 @@ class Generator(nn.Module):
     
 
 def test():
-    test_input = torch.randn(1, 3, 64, 64)
+    test_input = torch.randn(1, 3, 128, 128)
     
     # # Input layer unit testing
     # input_layer = InputLayer()

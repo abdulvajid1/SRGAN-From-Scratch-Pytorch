@@ -48,8 +48,9 @@ class Descriminator(nn.Module):
                 in_channels = out_channels 
         
         self.final_layers = nn.Sequential(
+            nn.AdaptiveAvgPool2d((6,6)),
             nn.Flatten(-3),
-            nn.Linear(in_features=8192, out_features=1024),
+            nn.Linear(in_features=512*6*6, out_features=1024),
             nn.LeakyReLU(),
             nn.Linear(in_features=1024, out_features=1)
         )
@@ -64,7 +65,7 @@ class Descriminator(nn.Module):
             
             
 def test():
-    x = torch.randn(6, 3, 64, 64)
+    x = torch.randn(6, 3, 96, 96)
     des = Descriminator()
     out = des(x)
     
