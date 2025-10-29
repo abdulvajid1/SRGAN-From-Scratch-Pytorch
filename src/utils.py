@@ -1,5 +1,8 @@
 import albumentations as A
 import config
+import torch.nn as nn
+from torchvision.models import vgg19
+
 
 
 both_transform = A.Compose([
@@ -24,3 +27,14 @@ def save_checkpoint(model, optimizer, step):
 
 def load_checkpoint(model, optimizer):
     pass
+
+class VGGLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.vgg19 = vgg19(pretrained=True).features[:36]
+        self.mse = nn.MSELoss()
+    
+    def forward(self, input_img, target_img):
+        input_img = self.vgg19(input_img)
+        target_img = self.vgg19(target_img)
+        return self.mse(input_img, target_img)
