@@ -16,6 +16,7 @@ from dataset import get_dataloader
 @torch.no_grad()
 def evaluate(generator, descriminator, test_dataloader, device):
     progress_bar = tqdm.tqdm(test_dataloader, dynamic_ncols=True)
+    gen_loss_list = [], desc_loss_list = []
     
     for step, (highres_real, lowres_img) in enumerate(progress_bar):
         highres_gen = generator(lowres_img)
@@ -34,7 +35,14 @@ def evaluate(generator, descriminator, test_dataloader, device):
         highres_gen_pred = descriminator(highres_gen)
         gen_loss = F.binary_cross_entropy_with_logits(highres_real_pred, highres_real_labels)
         
-        return gen_loss, desc_loss
+        gen_loss_list.append(gen_loss)
+        desc_loss_list.append(desc_loss)
+        
+    gen_loss_mean = torch.tensor(gen_loss_list).mean()
+    desc_loss_mean = torch.tensor(desc_loss_list).mean()
+    
+    
+    return gen_loss_mean, desc_loss_mean
         
 
 # train
@@ -91,8 +99,10 @@ def main():
     test_dataloader = get_dataloader(img_root_dir='./test', shuffle=False, batch_size=1, pin_memory=False, num_workers=2)
     
     num_epoches = config.epoches
+    eval_step = config.eval_step
     
     for epoch in range(1, num_epoches+1):
         train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, epoch=epoch)
-        train(generator, descriminator, test_dataloader, epoch=epoch)
+        if epoch % eval_step == 0:
+            train(generator, descriminator, test_dataloader, epoch=epoch)
         
