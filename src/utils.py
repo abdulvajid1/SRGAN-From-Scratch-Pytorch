@@ -17,6 +17,7 @@ highres_transform = A.Compose([
 ])
 
 lowres_transform = A.Compose([
+    A.Resize(config.highres/4, config.highres/4),
     A.Normalize([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]),
     A.ToTensorV2()
 ])

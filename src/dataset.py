@@ -19,10 +19,7 @@ class CustomImgDataset(Dataset):
     def __getitem__(self, index):
         # read img
         image = Image.open(self.images[index])
-        image = np.array(image)
-        
-        print(f'{image.shape}')
-        
+        image = np.array(image)        
         # both transform
         image = both_transform(image=image)['image']
         # highres & low res

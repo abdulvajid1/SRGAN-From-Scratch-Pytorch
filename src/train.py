@@ -9,6 +9,7 @@ from generator import Generator
 from descriminator import Descriminator
 from dataset import get_dataloader
 
+torch.set_float32_matmul_precision('high')
 
 # evaluate
 @torch.no_grad()
@@ -50,25 +51,27 @@ def train(generator, descriminator, genr_optimizer, desc_optimizer, train_datalo
     
     for step, (highres_real, lowres_img) in enumerate(progress_bar):
         highres_real, lowres_img = highres_real.to(device), lowres_img.to(device)
-        highres_gen = generator(lowres_img)
         
-        highres_real_pred = descriminator(highres_real)
-        highres_gen_pred = descriminator(highres_gen.detach())
+        with torch.autocast(device_type=device, dtype=torch.bfloat16):
+            highres_gen = generator(lowres_img)
+            highres_real_pred = descriminator(highres_real)
+            highres_gen_pred = descriminator(highres_gen.detach())
+            
+            highres_real_labels = torch.zeros(highres_real_pred.size()[0]).to(device)
+            highres_gen_labels = torch.ones(highres_gen_pred.size()[0]).to(device)
+            
+            desc_highres_real_loss = F.binary_cross_entropy_with_logits(highres_real_pred.flatten(), highres_real_labels)
+            desc_highres_gen_loss = F.binary_cross_entropy_with_logits(highres_gen_pred.flatten(), highres_gen_labels)
         
-        highres_real_labels = torch.zeros(highres_real_pred.size()[0]).to(device)
-        highres_gen_labels = torch.ones(highres_gen_pred.size()[0]).to(device)
-        
-        desc_highres_real_loss = F.binary_cross_entropy_with_logits(highres_real_pred.view(-1), highres_real_labels)
-        desc_highres_gen_loss = F.binary_cross_entropy_with_logits(highres_gen_pred.view(-1), highres_gen_labels)
-        
-        desc_loss = desc_highres_real_loss + desc_highres_gen_loss
+            desc_loss = desc_highres_real_loss + desc_highres_gen_loss
         
         desc_optimizer.zero_grad()
         desc_loss.backward()
         desc_optimizer.step()
         
-        highres_gen_pred = descriminator(highres_gen)
-        gen_loss = F.binary_cross_entropy_with_logits(highres_real_pred, highres_real_labels)
+        with torch.autocast(device_type=device, dtype=torch.bfloat16):
+            highres_gen_pred = descriminator(highres_gen)
+            gen_loss = F.binary_cross_entropy_with_logits(highres_gen_pred.flatten(), highres_real_labels)
         
         genr_optimizer.zero_grad()
         gen_loss.backward()
@@ -81,7 +84,7 @@ def train(generator, descriminator, genr_optimizer, desc_optimizer, train_datalo
 
 # main
 def main():
-    device = torch.device('cuda' if torch.cuda.is_available() else "cpu")
+    device = 'cuda' if torch.cuda.is_available() else "cpu"
     generator = Generator().to(device)
     descriminator = Descriminator().to(device)
     
