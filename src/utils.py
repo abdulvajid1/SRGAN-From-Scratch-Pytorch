@@ -1,7 +1,10 @@
+from pathlib import Path
+import torch
 import albumentations as A
 import config
 import torch.nn as nn
 from torchvision.models import vgg19
+from torchvision.utils import save_image, make_grid
 
 
 
@@ -28,6 +31,26 @@ def save_checkpoint(model, optimizer, step):
 
 def load_checkpoint(model, optimizer):
     pass
+
+@torch.no_grad()
+def visualize_sample(generator, samples, step, path, device):
+    generator.eval()
+    high_res_img, low_res_img = samples[0].to(device), samples[1].to(device) 
+    high_res_perd = generator(low_res_img)
+    high_res_perd.detach_()
+    
+    # import code; code.interact(local=locals())
+    
+    grid = make_grid(
+        [high_res_img[0].cpu(), high_res_perd[0].cpu()],
+        nrow=1,
+        normalize=True
+    )
+    
+    save_image(grid, fp=path / f'comparsion_org_vs_pred_epoch_{step}.png', normalize=True)
+    
+    generator.train()
+    
 
 class VGGLoss(nn.Module):
     def __init__(self):

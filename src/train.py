@@ -1,10 +1,14 @@
+from os import path
+from pathlib import Path
+from typing import Iterator
+from numpy import iterable
 import tqdm
 import config
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from utils import load_checkpoint, save_checkpoint
+from utils import load_checkpoint, save_checkpoint, visualize_sample
 from generator import Generator
 from descriminator import Descriminator
 from dataset import get_dataloader
@@ -14,6 +18,7 @@ torch.set_float32_matmul_precision('high')
 # evaluate
 @torch.no_grad()
 def evaluate(generator, descriminator, test_dataloader, device):
+    generator.eval()
     progress_bar = tqdm.tqdm(test_dataloader, dynamic_ncols=True)
     gen_loss_list = [], desc_loss_list = []
     
@@ -39,13 +44,13 @@ def evaluate(generator, descriminator, test_dataloader, device):
         
     gen_loss_mean = torch.tensor(gen_loss_list).mean()
     desc_loss_mean = torch.tensor(desc_loss_list).mean()
-    
+    generator.train()
     
     return gen_loss_mean, desc_loss_mean
         
 
 # train
-def train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, device='cuda', epoch=10):
+def train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, device='cuda', epoch=10, save_img_path=None, save_step=10):
     
     progress_bar = tqdm.tqdm(train_dataloader, dynamic_ncols=True)
     
@@ -77,6 +82,15 @@ def train(generator, descriminator, genr_optimizer, desc_optimizer, train_datalo
         gen_loss.backward()
         genr_optimizer.step()
         
+        progress_bar.set_postfix({
+            "genr_loss": f"{gen_loss.item(): .5f}",
+            "desc_loss": f"{desc_loss.item(): .5f}",
+        })
+        
+        
+        if step % save_step == 0:
+            samples = next(iter(train_dataloader))
+            visualize_sample(generator, samples, step, path=save_img_path, device=device)
         
         
     
@@ -94,20 +108,29 @@ def main():
     desc_lr = config.desc_lr
     genr_lr = config.genr_lr
     
-    genr_optimizer = optim.AdamW(generator.parameters(), lr=genr_lr, weight_decay=0.1)
-    desc_optimizer = optim.AdamW(descriminator.parameters(), lr=desc_lr)
+    genr_optimizer = optim.AdamW(generator.parameters(), lr=genr_lr)
+    desc_optimizer = optim.AdamW(descriminator.parameters(), lr=desc_lr, weight_decay=0.1)
     
     if config.is_load_checkpoint:
         generator, descriminator, optimizer = load_checkpoint(generator, descriminator, optimizer=optimizer)
     
-    train_dataloader = get_dataloader(img_root_dir='data', device=device)
+    
+    train_dataloader = get_dataloader(img_root_dir='data', batch_size=2, device=device)
     # test_dataloader = get_dataloader(img_root_dir='./test', shuffle=False, batch_size=1, pin_memory=False, num_workers=2)
     
     num_epoches = config.num_epoches
     eval_step = config.eval_step
+    sample_save_path = Path("sample_images")
+    sample_save_path.mkdir(parents=True, exist_ok=True)
+    
     
     for epoch in range(1, num_epoches+1):
-        train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, epoch=epoch, device=device)
+        generator.train()
+        descriminator.train()
+        train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, epoch=epoch, device=device, save_img_path=sample_save_path)
+        
+        samples = next(iter(train_dataloader))
+        visualize_sample(generator, samples, epoch, path=sample_save_path)
         # if epoch % eval_step == 0:
         #     evaluate(generator, descriminator, test_dataloader, epoch=epoch)
         
