@@ -10,8 +10,6 @@ from descriminator import Descriminator
 from dataset import get_dataloader
 
 
-# Load data
-
 # evaluate
 @torch.no_grad()
 def evaluate(generator, descriminator, test_dataloader, device):
@@ -46,11 +44,12 @@ def evaluate(generator, descriminator, test_dataloader, device):
         
 
 # train
-def train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, device):
+def train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, device='cuda', epoch=10):
     
     progress_bar = tqdm.tqdm(train_dataloader, dynamic_ncols=True)
     
     for step, (highres_real, lowres_img) in enumerate(progress_bar):
+        highres_real, lowres_img = highres_real.to(device), lowres_img.to(device)
         highres_gen = generator(lowres_img)
         
         highres_real_pred = descriminator(highres_real)
@@ -86,23 +85,31 @@ def main():
     generator = Generator().to(device)
     descriminator = Descriminator().to(device)
     
-    desc_lr = config.desc_lr
-    gen_lr = config.gen_lr
+    generator = torch.compile(generator)
+    descriminator = torch.compile(descriminator)
     
-    genr_optimizer = optim.AdamW(generator.parameters(), lr=gen_lr, weight_decay=0.1)
+    desc_lr = config.desc_lr
+    genr_lr = config.genr_lr
+    
+    genr_optimizer = optim.AdamW(generator.parameters(), lr=genr_lr, weight_decay=0.1)
     desc_optimizer = optim.AdamW(descriminator.parameters(), lr=desc_lr)
     
-    if load_checkpoint:
+    if config.is_load_checkpoint:
         generator, descriminator, optimizer = load_checkpoint(generator, descriminator, optimizer=optimizer)
     
-    train_dataloader = get_dataloader(img_root_dir='./train', device=device)
-    test_dataloader = get_dataloader(img_root_dir='./test', shuffle=False, batch_size=1, pin_memory=False, num_workers=2)
+    train_dataloader = get_dataloader(img_root_dir='data', device=device)
+    # test_dataloader = get_dataloader(img_root_dir='./test', shuffle=False, batch_size=1, pin_memory=False, num_workers=2)
     
-    num_epoches = config.epoches
+    num_epoches = config.num_epoches
     eval_step = config.eval_step
     
     for epoch in range(1, num_epoches+1):
-        train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, epoch=epoch)
-        if epoch % eval_step == 0:
-            train(generator, descriminator, test_dataloader, epoch=epoch)
+        train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, epoch=epoch, device=device)
+        # if epoch % eval_step == 0:
+        #     evaluate(generator, descriminator, test_dataloader, epoch=epoch)
+        
+        
+if __name__ == "__main__":
+    main()
+            
         
