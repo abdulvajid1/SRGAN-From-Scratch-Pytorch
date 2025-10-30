@@ -69,7 +69,7 @@ def test():
     des = Descriminator()
     out = des(x)
     
-    print(f"shape {out.size()}")
+    print(f"shape {out.size()} \n {out}")
     
     
 if __name__ == "__main__":
