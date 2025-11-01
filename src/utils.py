@@ -9,7 +9,7 @@ from torchvision.utils import save_image, make_grid
 
 
 both_transform = A.Compose([
-    A.RandomCrop(config.highres, config.highres),
+    A.CenterCrop(config.highres, config.highres),
     A.HorizontalFlip(),
     A.RandomRotate90()
 ])

@@ -15,6 +15,9 @@ from dataset import get_dataloader
 from torch.utils.tensorboard import SummaryWriter
 import logging
 from rich.logging import RichHandler
+from utils import VGGLoss
+
+
 
 logging.basicConfig(
     # filename="training.log",
@@ -62,7 +65,7 @@ def evaluate(generator, descriminator, test_dataloader, device):
         
 
 # train
-def train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, device='cuda', epoch=10, save_img_path=None, save_step=10, alpha=0.80):
+def train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, vgg_loss, device='cuda', epoch=10, save_img_path=None, save_step=10, alpha=0.95):
     
     progress_bar = tqdm.tqdm(train_dataloader, dynamic_ncols=True)
     
@@ -89,7 +92,8 @@ def train(generator, descriminator, genr_optimizer, desc_optimizer, train_datalo
         with torch.autocast(device_type=device, dtype=torch.bfloat16):
             highres_gen_pred = descriminator(highres_gen)
             gen_loss = F.binary_cross_entropy_with_logits(highres_gen_pred.flatten(), highres_real_labels)
-            content_loss = F.mse_loss(highres_gen, highres_real)
+            # content_loss = F.mse_loss(highres_gen, highres_real)
+            content_loss = vgg_loss(highres_gen, highres_real)
             gen_loss = alpha * gen_loss + (1.0 - alpha) * content_loss
             
             
@@ -123,9 +127,11 @@ def main():
     
     generator = Generator().to(device)
     descriminator = Descriminator().to(device)
+    vgg_loss = VGGLoss().to(device)
     
     generator = torch.compile(generator)
     descriminator = torch.compile(descriminator)
+    vgg_loss = torch.compile(vgg_loss)
     
     logging.info("Model loaded & Compiled")
     
@@ -139,7 +145,7 @@ def main():
         generator, descriminator, optimizer = load_checkpoint(generator, descriminator, optimizer=optimizer)
     
     
-    train_dataloader = get_dataloader(img_root_dir='data', batch_size=config.batch_size, device=device)
+    train_dataloader = get_dataloader(img_root_dir='data', batch_size=config.batch_size, device=device, num_workers=2, pin_memory=True)
     logging.info(f"Loaded data loader with batch size of {config.batch_size}")
     # test_dataloader = get_dataloader(img_root_dir='./test', shuffle=False, batch_size=1, pin_memory=False, num_workers=2)
     
@@ -152,11 +158,11 @@ def main():
     for epoch in range(1, num_epoches+1):
         generator.train()
         descriminator.train()
-        train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, epoch=epoch, device=device, save_img_path=sample_save_path)
+        train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, vgg_loss, epoch=epoch, device=device, save_img_path=sample_save_path)
         
-        samples = next(iter(train_dataloader))
-        visualize_sample(generator, samples, epoch, path=sample_save_path)
-        logging.info(f"Saved sample images for epoch {epoch}")
+        # samples = next(iter(train_dataloader))
+        # visualize_sample(generator, samples, epoch, path=sample_save_path)
+        # logging.info(f"Saved sample images for epoch {epoch}")
         # if epoch % eval_step == 0:
         #     evaluate(generator, descriminator, test_dataloader, epoch=epoch)
         
