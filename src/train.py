@@ -12,6 +12,18 @@ from utils import load_checkpoint, save_checkpoint, visualize_sample
 from generator import Generator
 from descriminator import Descriminator
 from dataset import get_dataloader
+from torch.utils.tensorboard import SummaryWriter
+import logging
+from rich.logging import RichHandler
+
+logging.basicConfig(
+    # filename="training.log",
+    level=logging.INFO,
+    datefmt="[%X]",                # optional time format
+    handlers=[RichHandler()]
+    )
+
+writer = SummaryWriter()
 
 torch.set_float32_matmul_precision('high')
 
@@ -50,7 +62,7 @@ def evaluate(generator, descriminator, test_dataloader, device):
         
 
 # train
-def train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, device='cuda', epoch=10, save_img_path=None, save_step=10):
+def train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, device='cuda', epoch=10, save_img_path=None, save_step=10, alpha=0.80):
     
     progress_bar = tqdm.tqdm(train_dataloader, dynamic_ncols=True)
     
@@ -77,10 +89,18 @@ def train(generator, descriminator, genr_optimizer, desc_optimizer, train_datalo
         with torch.autocast(device_type=device, dtype=torch.bfloat16):
             highres_gen_pred = descriminator(highres_gen)
             gen_loss = F.binary_cross_entropy_with_logits(highres_gen_pred.flatten(), highres_real_labels)
+            content_loss = F.mse_loss(highres_gen, highres_real)
+            gen_loss = alpha * gen_loss + (1.0 - alpha) * content_loss
+            
+            
         
         genr_optimizer.zero_grad()
         gen_loss.backward()
         genr_optimizer.step()
+        
+        if step % 10 == 0:
+            writer.add_scalar("train/gen_loss", gen_loss, step)
+            writer.add_scalar("train/desc_loss", desc_loss, step)
         
         progress_bar.set_postfix({
             "genr_loss": f"{gen_loss.item(): .5f}",
@@ -99,23 +119,28 @@ def train(generator, descriminator, genr_optimizer, desc_optimizer, train_datalo
 # main
 def main():
     device = 'cuda' if torch.cuda.is_available() else "cpu"
+    logging.info(f"Using device: {device}")
+    
     generator = Generator().to(device)
     descriminator = Descriminator().to(device)
     
     generator = torch.compile(generator)
     descriminator = torch.compile(descriminator)
     
+    logging.info("Model loaded & Compiled")
+    
     desc_lr = config.desc_lr
     genr_lr = config.genr_lr
     
     genr_optimizer = optim.AdamW(generator.parameters(), lr=genr_lr)
-    desc_optimizer = optim.AdamW(descriminator.parameters(), lr=desc_lr, weight_decay=0.1)
+    desc_optimizer = optim.AdamW(descriminator.parameters(), lr=desc_lr, weight_decay=0.2)
     
     if config.is_load_checkpoint:
         generator, descriminator, optimizer = load_checkpoint(generator, descriminator, optimizer=optimizer)
     
     
-    train_dataloader = get_dataloader(img_root_dir='data', batch_size=2, device=device)
+    train_dataloader = get_dataloader(img_root_dir='data', batch_size=config.batch_size, device=device)
+    logging.info(f"Loaded data loader with batch size of {config.batch_size}")
     # test_dataloader = get_dataloader(img_root_dir='./test', shuffle=False, batch_size=1, pin_memory=False, num_workers=2)
     
     num_epoches = config.num_epoches
@@ -123,7 +148,7 @@ def main():
     sample_save_path = Path("sample_images")
     sample_save_path.mkdir(parents=True, exist_ok=True)
     
-    
+    logging.info(f"Training Started")
     for epoch in range(1, num_epoches+1):
         generator.train()
         descriminator.train()
@@ -131,6 +156,7 @@ def main():
         
         samples = next(iter(train_dataloader))
         visualize_sample(generator, samples, epoch, path=sample_save_path)
+        logging.info(f"Saved sample images for epoch {epoch}")
         # if epoch % eval_step == 0:
         #     evaluate(generator, descriminator, test_dataloader, epoch=epoch)
         

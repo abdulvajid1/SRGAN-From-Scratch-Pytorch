@@ -4,6 +4,8 @@ __pycache__/
 *$py.class
 
 src/data
+src/sample_images/
+src/runs/
 
 # C extensions
 *.so
