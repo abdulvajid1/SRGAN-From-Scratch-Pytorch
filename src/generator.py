@@ -27,10 +27,10 @@ class ResConvBlock(nn.Module):
         
         self.conv_block = nn.Sequential(
             nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(num_features=64), # same as output channel
+            nn.InstanceNorm2d(num_features=64), # same as output channel
             nn.PReLU(num_parameters=64),
             nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(num_features=64),
+            nn.InstanceNorm2d(num_features=64),
             nn.PReLU(num_parameters=64),
         )
         
@@ -44,7 +44,7 @@ class ResidualBlock(nn.Module):
         self.residual_blocks = nn.Sequential(
             *[ResConvBlock() for _ in range(num_layers)],
             nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(64)
+            nn.InstanceNorm2d(64)
         )
     def forward(self, x: torch.Tensor):
         return x + self.residual_blocks(x)

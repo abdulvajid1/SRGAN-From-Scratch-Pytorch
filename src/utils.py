@@ -32,7 +32,7 @@ def save_checkpoint(model, optimizer, step):
 def load_checkpoint(model, optimizer):
     pass
 
-@torch.no_grad()
+@torch.inference_mode()
 def visualize_sample(generator, samples, step, path, device):
     generator.eval()
     high_res_img, low_res_img = samples[0].to(device), samples[1].to(device) 
@@ -56,6 +56,8 @@ class VGGLoss(nn.Module):
     def __init__(self):
         super().__init__()
         self.vgg19 = vgg19(pretrained=True).features[:36]
+        for param in self.vgg19.parameters():
+            param.requires_grad = False
         self.mse = nn.MSELoss()
     
     def forward(self, input_img, target_img):

@@ -65,7 +65,7 @@ def evaluate(generator, descriminator, test_dataloader, device):
         
 
 # train
-def train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, vgg_loss, device='cuda', epoch=10, save_img_path=None, save_step=10, alpha=0.95):
+def train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, vgg_loss, device='cuda', epoch=10, save_img_path=None, save_step=10, alpha=0.001):
     
     progress_bar = tqdm.tqdm(train_dataloader, dynamic_ncols=True)
     
@@ -77,8 +77,8 @@ def train(generator, descriminator, genr_optimizer, desc_optimizer, train_datalo
             highres_real_pred = descriminator(highres_real)
             highres_gen_pred = descriminator(highres_gen.detach())
             
-            highres_real_labels = torch.zeros(highres_real_pred.size()[0]).to(device)
-            highres_gen_labels = torch.ones(highres_gen_pred.size()[0]).to(device)
+            highres_real_labels = torch.ones(highres_real_pred.size()[0]).to(device)
+            highres_gen_labels = torch.zeros(highres_gen_pred.size()[0]).to(device)
             
             desc_highres_real_loss = F.binary_cross_entropy_with_logits(highres_real_pred.flatten(), highres_real_labels)
             desc_highres_gen_loss = F.binary_cross_entropy_with_logits(highres_gen_pred.flatten(), highres_gen_labels)
@@ -127,7 +127,7 @@ def main():
     
     generator = Generator().to(device)
     descriminator = Descriminator().to(device)
-    vgg_loss = VGGLoss().to(device)
+    vgg_loss = VGGLoss().eval().to(device)
     
     generator = torch.compile(generator)
     descriminator = torch.compile(descriminator)
