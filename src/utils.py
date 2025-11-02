@@ -11,12 +11,12 @@ from torchvision.utils import save_image, make_grid
 both_transform = A.Compose([
     A.CenterCrop(config.highres, config.highres),
     A.HorizontalFlip(),
-    A.RandomRotate90()
 ])
 
 highres_transform = A.Compose([
     A.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
-    A.ToTensorV2()
+    A.ToTensorV2(),
+    A.RandomRotate
 ])
 
 lowres_transform = A.Compose([
@@ -38,7 +38,7 @@ def visualize_sample(generator, samples, step, path, device):
     high_res_img, low_res_img = samples[0].to(device), samples[1].to(device) 
     high_res_perd = generator(low_res_img)
     high_res_perd.detach_()
-    
+    save_image(high_res_img[0].cpu(), fp=path / f'real_img{step}.png', normalize=True)
     # import code; code.interact(local=locals())
     
     grid = make_grid(

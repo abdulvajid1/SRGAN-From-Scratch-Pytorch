@@ -65,7 +65,7 @@ def evaluate(generator, descriminator, test_dataloader, device):
         
 
 # train
-def train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, vgg_loss, device='cuda', epoch=10, save_img_path=None, save_step=10, alpha=0.001):
+def train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, vgg_loss, device='cuda', epoch=10, save_img_path=None, save_step=10, alpha=0.01):
     
     progress_bar = tqdm.tqdm(train_dataloader, dynamic_ncols=True)
     
@@ -114,7 +114,7 @@ def train(generator, descriminator, genr_optimizer, desc_optimizer, train_datalo
         
         if step % save_step == 0:
             samples = next(iter(train_dataloader))
-            visualize_sample(generator, samples, step, path=save_img_path, device=device)
+            visualize_sample(generator, samples, step+epoch, path=save_img_path, device=device)
         
         
     
@@ -139,7 +139,7 @@ def main():
     genr_lr = config.genr_lr
     
     genr_optimizer = optim.AdamW(generator.parameters(), lr=genr_lr)
-    desc_optimizer = optim.AdamW(descriminator.parameters(), lr=desc_lr, weight_decay=0.2)
+    desc_optimizer = optim.AdamW(descriminator.parameters(), lr=desc_lr, weight_decay=0.01)
     
     if config.is_load_checkpoint:
         generator, descriminator, optimizer = load_checkpoint(generator, descriminator, optimizer=optimizer)
