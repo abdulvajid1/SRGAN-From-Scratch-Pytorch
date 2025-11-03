@@ -65,7 +65,10 @@ def evaluate(generator, descriminator, test_dataloader, device):
         
 
 # train
-def train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, vgg_loss, device='cuda', epoch=10, save_img_path=None, save_step=300, pretrain=True):
+def train(generator, descriminator, genr_optimizer,
+          desc_optimizer, train_dataloader, vgg_loss,
+          device='cuda', epoch=10, save_img_path=None,
+          save_step=50, pretrain=True, desc_steps=2, save_model_step=150):
     
     if pretrain:
         logging.info("Starting Pretraining")
@@ -77,69 +80,66 @@ def train(generator, descriminator, genr_optimizer, desc_optimizer, train_datalo
     for step, (highres_real, lowres_img) in enumerate(progress_bar):
         highres_real, lowres_img = highres_real.to(device), lowres_img.to(device)
         
+        
+            
         with torch.autocast(device_type=device, dtype=torch.bfloat16):
             
             # Generate Fake with generator
             highres_gen = generator(lowres_img)
             
-            # if not pretrain:
-            
-            #     # Descriminate
-            #     highres_real_pred = descriminator(highres_real)
-            #     highres_gen_pred = descriminator(highres_gen.detach())
+            # If Pretrain
+            # do more steps in descriminator
+            for _ in range(1, desc_steps):
                 
-            #     highres_real_labels = torch.ones(highres_real_pred.size()[0]).to(device)
-            #     highres_gen_labels = torch.zeros(highres_gen_pred.size()[0]).to(device)
+                # Descriminate
+                highres_real_pred = descriminator(highres_real)
+                highres_gen_pred = descriminator(highres_gen.detach())
                 
-            #     desc_highres_real_loss = F.binary_cross_entropy_with_logits(highres_real_pred.view(-1), highres_real_labels)
-            #     desc_highres_gen_loss = F.binary_cross_entropy_with_logits(highres_gen_pred.view(-1), highres_gen_labels)
+                highres_real_labels = torch.ones(highres_real_pred.size()[0]).to(device)
+                highres_gen_labels = torch.zeros(highres_gen_pred.size()[0]).to(device)
+                
+                desc_highres_real_loss = F.binary_cross_entropy_with_logits(highres_real_pred.view(-1), highres_real_labels)
+                desc_highres_gen_loss = F.binary_cross_entropy_with_logits(highres_gen_pred.view(-1), highres_gen_labels)
             
-            #     desc_loss = desc_highres_real_loss + desc_highres_gen_loss
-            
-        # if not pretrain:
-        #     desc_optimizer.zero_grad()
-        #     desc_loss.backward()
-        #     desc_optimizer.step()
+                desc_loss = desc_highres_real_loss + desc_highres_gen_loss
+                
+                desc_optimizer.zero_grad()
+                desc_loss.backward()
+                desc_optimizer.step()
         
         with torch.autocast(device_type=device, dtype=torch.bfloat16):
             
-            # if not pretrain:
-            #     highres_gen_pred = descriminator(highres_gen)
+            highres_gen_pred = descriminator(highres_gen)
+        
+            # finetune adversrial loss + content vgg loss
+            l2_loss = 0.5 * F.mse_loss(highres_gen, highres_real)
+            gen_loss = 0.01 * F.binary_cross_entropy_with_logits(highres_gen_pred.view(-1), highres_real_labels)
+            content_loss = 0.1 * vgg_loss(highres_gen, highres_real)
+            gen_loss = gen_loss + content_loss + l2_loss
             
-            #     # adversrial loss
-            #     gen_loss = 1e-3 * F.binary_cross_entropy_with_logits(highres_gen_pred.view(-1), highres_real_labels)
-            #     content_loss = 0.006 * vgg_loss(highres_gen, highres_real)
-            #     gen_loss = gen_loss + content_loss
-            
-            # else: 
-            #     # pretrain with l2 loss then vgg + gan
-            gen_loss = F.mse_loss(highres_gen, highres_real)
-            
-            # finetuning Loss 
-            # content_loss = 0.006 * vgg_loss(highres_gen, highres_real)
-            # gen_loss = gen_loss + content_loss  # Use
-            
-            
+            # Pretrain loss
+            # gen_loss = F.mse_loss(highres_gen, highres_real)
             
         
         genr_optimizer.zero_grad()
         gen_loss.backward()
         genr_optimizer.step()
         
-        if step % 10 == 0:
-            writer.add_scalar("train/gen_loss", gen_loss, step)
+        # if step % 10 == 0:
+        #     writer.add_scalar("train/gen_loss", gen_loss, step)
             
-            # if not pretrain:
-            #     writer.add_scalar("train/desc_loss", desc_loss, step)
+        #     # if not pretrain:
+        #     #     writer.add_scalar("train/desc_loss", desc_loss, step)
         
-        # progress_bar.set_postfix({
-        #     "genr_loss": f"{gen_loss.item(): .5f}",
-        #     "desc_loss": f"{desc_loss.item(): .5f}",
-        # })
+        progress_bar.set_postfix({
+            "genr_loss": f"{gen_loss.item(): .5f}",
+            "desc_loss": f"{desc_loss.item(): .5f}",
+        })
         
+        if step % save_model_step == 0:
+            save_checkpoint(generator=generator, descriminator=descriminator, gen_optimizer=genr_optimizer, desc_optimizer=desc_optimizer, global_step=epoch+step)
         
         if step % save_step == 0:
-            save_checkpoint(generator=generator, descriminator=descriminator, gen_optimizer=genr_optimizer, desc_optimizer=desc_optimizer, global_step=epoch+step)
             samples = next(iter(train_dataloader))
             visualize_sample(generator, samples, step+epoch, path=save_img_path, device=device)
         
