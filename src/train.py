@@ -46,8 +46,8 @@ def evaluate(generator, descriminator, test_dataloader, device):
         highres_real_labels = torch.zeros(highres_real_pred.size()[0]).to(device)
         highres_gen_labels = torch.ones(highres_gen_pred.size()[0]).to(device)
         
-        desc_highres_real_loss = F.binary_cross_entropy_with_logits(highres_real_pred.view(-1), highres_real_labels)
-        desc_highres_gen_loss = F.binary_cross_entropy_with_logits(highres_gen_pred.view(-1), highres_gen_labels)
+        desc_highres_real_loss = F.mse_loss(highres_real_pred.view(-1), highres_real_labels)
+        desc_highres_gen_loss = F.mse_loss(highres_gen_pred.view(-1), highres_gen_labels)
         
         desc_loss = desc_highres_real_loss + desc_highres_gen_loss
         
@@ -68,7 +68,7 @@ def evaluate(generator, descriminator, test_dataloader, device):
 def train(generator, descriminator, genr_optimizer,
           desc_optimizer, train_dataloader, vgg_loss,
           device='cuda', epoch=10, save_img_path=None,
-          save_step=50, pretrain=True, desc_steps=2, save_model_step=150):
+          save_step=50, pretrain=True, desc_steps=1, save_model_step=150):
     
     if pretrain:
         logging.info("Starting Pretraining")
@@ -89,7 +89,7 @@ def train(generator, descriminator, genr_optimizer,
             
             # If Pretrain
             # do more steps in descriminator
-            for _ in range(1, desc_steps):
+            for _ in range(0, desc_steps):
                 
                 # Descriminate
                 highres_real_pred = descriminator(highres_real)
@@ -98,10 +98,10 @@ def train(generator, descriminator, genr_optimizer,
                 highres_real_labels = torch.ones(highres_real_pred.size()[0]).to(device)
                 highres_gen_labels = torch.zeros(highres_gen_pred.size()[0]).to(device)
                 
-                desc_highres_real_loss = F.binary_cross_entropy_with_logits(highres_real_pred.view(-1), highres_real_labels)
-                desc_highres_gen_loss = F.binary_cross_entropy_with_logits(highres_gen_pred.view(-1), highres_gen_labels)
+                desc_highres_real_loss = F.l1_loss(highres_real_pred.view(-1), highres_real_labels)
+                desc_highres_gen_loss = F.l1_loss(highres_gen_pred.view(-1), highres_gen_labels)
             
-                desc_loss = desc_highres_real_loss + desc_highres_gen_loss
+                desc_loss = 0.9 * (desc_highres_real_loss + desc_highres_gen_loss)
                 
                 desc_optimizer.zero_grad()
                 desc_loss.backward()
@@ -112,10 +112,10 @@ def train(generator, descriminator, genr_optimizer,
             highres_gen_pred = descriminator(highres_gen)
         
             # finetune adversrial loss + content vgg loss
-            l2_loss = 0.5 * F.mse_loss(highres_gen, highres_real)
-            gen_loss = 0.01 * F.binary_cross_entropy_with_logits(highres_gen_pred.view(-1), highres_real_labels)
+            l1_loss = F.l1_loss(highres_gen, highres_real)
+            gen_loss = 0.1 * F.l1_loss(highres_gen_pred.view(-1), highres_real_labels)
             content_loss = 0.1 * vgg_loss(highres_gen, highres_real)
-            gen_loss = gen_loss + content_loss + l2_loss
+            gen_loss = gen_loss + content_loss + l1_loss
             
             # Pretrain loss
             # gen_loss = F.mse_loss(highres_gen, highres_real)
@@ -166,7 +166,7 @@ def main():
     genr_lr = config.genr_lr
     
     genr_optimizer = optim.AdamW(generator.parameters(), lr=genr_lr)
-    desc_optimizer = optim.AdamW(descriminator.parameters(), lr=desc_lr)
+    desc_optimizer = optim.AdamW(descriminator.parameters(), lr=desc_lr, weight_decay=0.2)
     
     if config.is_load_checkpoint:
         loaded_model = load_checkpoint(generator, descriminator, gen_optimizer=genr_optimizer, desc_optimizer=desc_optimizer)

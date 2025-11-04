@@ -43,7 +43,7 @@ def save_checkpoint(generator: nn.Module, descriminator: nn.Module, gen_optimize
 
 def load_checkpoint(generator, descriminator, gen_optimizer, desc_optimizer):
     path = Path('checkpoints')
-    last_model_path = sorted(list(path.glob("*.ckpt")))[-1]
+    last_model_path = sorted(list(path.glob("*.ckpt")), key=lambda p: p.stem.split("_")[-1])[-1]
     
     load_dict = torch.load(last_model_path)
     generator.load_state_dict(load_dict['gen'])
