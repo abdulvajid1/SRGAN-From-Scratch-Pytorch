@@ -67,9 +67,8 @@ def evaluate(generator, descriminator, test_dataloader, device):
 # train
 def train(generator, descriminator, genr_optimizer,
           desc_optimizer, train_dataloader, vgg_loss,
-          device='cuda', epoch=10, save_img_path=None,
-          save_step=50, pretrain=True, desc_steps=1, save_model_step=150):
-    
+           epoch, device='cuda', save_img_path=None,
+          save_step=10, pretrain=True, desc_steps=1, save_model_step=25, data_len=3000):
     if pretrain:
         logging.info("Starting Pretraining")
     else:
@@ -87,8 +86,8 @@ def train(generator, descriminator, genr_optimizer,
             # Generate Fake with generator
             highres_gen = generator(lowres_img)
             
-            # If Pretrain
-            # do more steps in descriminator
+            # TODO: If Pretrain commend out
+
             for _ in range(0, desc_steps):
                 
                 # Descriminate
@@ -101,7 +100,7 @@ def train(generator, descriminator, genr_optimizer,
                 desc_highres_real_loss = F.l1_loss(highres_real_pred.view(-1), highres_real_labels)
                 desc_highres_gen_loss = F.l1_loss(highres_gen_pred.view(-1), highres_gen_labels)
             
-                desc_loss = 0.9 * (desc_highres_real_loss + desc_highres_gen_loss)
+                desc_loss = desc_highres_real_loss + desc_highres_gen_loss
                 
                 desc_optimizer.zero_grad()
                 desc_loss.backward()
@@ -109,20 +108,22 @@ def train(generator, descriminator, genr_optimizer,
         
         with torch.autocast(device_type=device, dtype=torch.bfloat16):
             
-            highres_gen_pred = descriminator(highres_gen)
+            # for finetuning
+            highres_gen_pred = descriminator(highres_gen) # TODO uncomment for finetune
         
             # finetune adversrial loss + content vgg loss
-            l1_loss = F.l1_loss(highres_gen, highres_real)
-            gen_loss = 0.1 * F.l1_loss(highres_gen_pred.view(-1), highres_real_labels)
-            content_loss = 0.1 * vgg_loss(highres_gen, highres_real)
-            gen_loss = gen_loss + content_loss + l1_loss
-            
+            l1_loss = 1.3 * F.l1_loss(highres_gen, highres_real) # TODO: change to l1_loss,  l1oss content loss for pretrain
+
+
+            gen_loss = 0.1 * F.binary_cross_entropy_with_logits(highres_gen_pred.view(-1), highres_real_labels) # adversarial loss
+            content_loss = vgg_loss(highres_gen, highres_real)
+            gen_total_loss = gen_loss + content_loss + l1_loss
             # Pretrain loss
             # gen_loss = F.mse_loss(highres_gen, highres_real)
             
         
         genr_optimizer.zero_grad()
-        gen_loss.backward()
+        gen_total_loss.backward()
         genr_optimizer.step()
         
         # if step % 10 == 0:
@@ -133,15 +134,15 @@ def train(generator, descriminator, genr_optimizer,
         
         progress_bar.set_postfix({
             "genr_loss": f"{gen_loss.item(): .5f}",
-            "desc_loss": f"{desc_loss.item(): .5f}",
+            "desc_loss": f"{desc_loss.item(): .5f}", # TODO uncomment for finetune
         })
         
-        if step % save_model_step == 0:
-            save_checkpoint(generator=generator, descriminator=descriminator, gen_optimizer=genr_optimizer, desc_optimizer=desc_optimizer, global_step=epoch+step)
+        if (epoch * data_len) + step % save_model_step == 0:
+            save_checkpoint(generator=generator, descriminator=descriminator, gen_optimizer=genr_optimizer, desc_optimizer=desc_optimizer, global_step=(epoch * data_len) + step)
         
-        if step % save_step == 0:
+        if (epoch * data_len) + step % save_step == 0:
             samples = next(iter(train_dataloader))
-            visualize_sample(generator, samples, step+epoch, path=save_img_path, device=device)
+            visualize_sample(generator, samples, step=(epoch * data_len) + step, path=save_img_path, device=device)
         
         
     
@@ -166,14 +167,14 @@ def main():
     genr_lr = config.genr_lr
     
     genr_optimizer = optim.AdamW(generator.parameters(), lr=genr_lr)
-    desc_optimizer = optim.AdamW(descriminator.parameters(), lr=desc_lr, weight_decay=0.2)
+    desc_optimizer = optim.AdamW(descriminator.parameters(), lr=desc_lr)
     
     if config.is_load_checkpoint:
         loaded_model = load_checkpoint(generator, descriminator, gen_optimizer=genr_optimizer, desc_optimizer=desc_optimizer)
         logging.info(f"Loaded {loaded_model}")
     
     
-    train_dataloader = get_dataloader(img_root_dir='data', batch_size=config.batch_size, device=device, num_workers=2, pin_memory=True)
+    train_dataloader = get_dataloader(img_root_dir='data', batch_size=config.batch_size, device=device, pin_memory=True, num_workers=0)
     logging.info(f"Loaded data loader with batch size of {config.batch_size}")
     # test_dataloader = get_dataloader(img_root_dir='./test', shuffle=False, batch_size=1, pin_memory=False, num_workers=2)
     
@@ -181,12 +182,14 @@ def main():
     eval_step = config.eval_step
     sample_save_path = Path("sample_images")
     sample_save_path.mkdir(parents=True, exist_ok=True)
-    
+
+    logging.info(f"Number of Samples in training dataset: {len(train_dataloader) * config.batch_size}")
+    logging.info(f"Number of Steps in training dataset: {len(train_dataloader)}")
     logging.info(f"Training Started")
-    for epoch in range(1, num_epoches+1):
+    for epoch in range(0, num_epoches+1):
         generator.train()
         descriminator.train()
-        train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, vgg_loss, epoch=epoch, device=device, save_img_path=sample_save_path, pretrain=True)
+        train(generator, descriminator, genr_optimizer, desc_optimizer, train_dataloader, vgg_loss, epoch=epoch, device=device, save_img_path=sample_save_path, pretrain=True, data_len=len(train_dataloader))
         
         # samples = next(iter(train_dataloader))
         # visualize_sample(generator, samples, epoch, path=sample_save_path)
