@@ -6,13 +6,14 @@ import config
 import torch.nn as nn
 from torchvision.models import vgg19
 from torchvision.utils import save_image, make_grid
+import cv2
 
 import descriminator
 
 
 
 both_transform = A.Compose([
-    A.CenterCrop(config.highres, config.highres),
+    A.RandomCrop(config.highres, config.highres),
     A.HorizontalFlip(),
 ])
 
@@ -22,7 +23,7 @@ highres_transform = A.Compose([
 ])
 
 lowres_transform = A.Compose([
-    A.Resize(config.highres/4, config.highres/4),
+    A.Resize(config.highres/4, config.highres/4, interpolation=cv2.INTER_CUBIC),
     A.Normalize([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]),
     A.ToTensorV2()
 ])
@@ -68,7 +69,9 @@ def visualize_sample(generator, samples, step, path, device):
         normalize=True
     )
     
-    save_image(grid, fp=path / f'comparsion_org_vs_pred_epoch_{step}.png', normalize=True)
+    save_image(grid, fp=path / f'highres_{step}.png', normalize=True)
+    save_image(low_res_img[0].cpu(), fp=path / f'lowres_{step}.png', normalize=True)
+    
     
     generator.train()
     

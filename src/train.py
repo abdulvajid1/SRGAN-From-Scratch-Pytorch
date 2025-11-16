@@ -69,17 +69,13 @@ def train(generator, descriminator, genr_optimizer,
           desc_optimizer, train_dataloader, vgg_loss,
            epoch, device='cuda', save_img_path=None,
           save_step=10, pretrain=True, desc_steps=1, save_model_step=25, data_len=3000):
-    if pretrain:
-        logging.info("Starting Pretraining")
-    else:
-        logging.info("Starting finetuning")
-    
+
     progress_bar = tqdm.tqdm(train_dataloader, dynamic_ncols=True)
     
     for step, (highres_real, lowres_img) in enumerate(progress_bar):
         highres_real, lowres_img = highres_real.to(device), lowres_img.to(device)
         
-        
+        global_step = (epoch * data_len) + step
             
         with torch.autocast(device_type=device, dtype=torch.bfloat16):
             
@@ -115,7 +111,7 @@ def train(generator, descriminator, genr_optimizer,
             l1_loss = 1.3 * F.l1_loss(highres_gen, highres_real) # TODO: change to l1_loss,  l1oss content loss for pretrain
 
 
-            gen_loss = 0.1 * F.binary_cross_entropy_with_logits(highres_gen_pred.view(-1), highres_real_labels) # adversarial loss
+            gen_loss = 0.6 * F.binary_cross_entropy_with_logits(highres_gen_pred.view(-1), highres_real_labels) # adversarial loss
             content_loss = vgg_loss(highres_gen, highres_real)
             gen_total_loss = gen_loss + content_loss + l1_loss
             # Pretrain loss
@@ -137,12 +133,14 @@ def train(generator, descriminator, genr_optimizer,
             "desc_loss": f"{desc_loss.item(): .5f}", # TODO uncomment for finetune
         })
         
-        if (epoch * data_len) + step % save_model_step == 0:
-            save_checkpoint(generator=generator, descriminator=descriminator, gen_optimizer=genr_optimizer, desc_optimizer=desc_optimizer, global_step=(epoch * data_len) + step)
+        if global_step % save_model_step == 0:
+            logging.info(f"Saving model at step {global_step}")
+            save_checkpoint(generator=generator, descriminator=descriminator, gen_optimizer=genr_optimizer, desc_optimizer=desc_optimizer, global_step=global_step)
         
-        if (epoch * data_len) + step % save_step == 0:
+        if global_step % save_step == 0:
             samples = next(iter(train_dataloader))
-            visualize_sample(generator, samples, step=(epoch * data_len) + step, path=save_img_path, device=device)
+            logging.info(f"Saving sample images at step {global_step}")
+            visualize_sample(generator, samples, step=global_step, path=save_img_path, device=device)
         
         
     
