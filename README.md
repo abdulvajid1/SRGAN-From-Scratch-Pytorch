@@ -42,8 +42,22 @@ Below is an example result on the classic *Baboon* test image.
 
 ---
 
-The training script supports resume, checkpointing, and mixed precision (optional).
+The training script supports resume, checkpointing, and mixed precision.
 
+---
+## 🚀 Training Details
+
+Device: RTX 5070
+
+Dataset: DIV2K, Flicker2K
+
+Loss Functions:
+
+  Discriminator: L1 loss for both real and fake predictions (not WGAN)
+
+  Generator: Combination of VGG perceptual loss, L1 loss, and GAN loss using cross-entropy
+  
+  After experimenting with several loss combinations and hyperparameters, this setup provided the most stable training in my experiments.
 ---
 
 ## 🖼️ Inference
