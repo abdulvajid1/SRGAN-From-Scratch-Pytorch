@@ -24,6 +24,7 @@ Below is an example result on the classic *Baboon* test image.
 ![Low Resolution](src/baboon_sidebyside.png)
 
 ---
+![Low Resolution](src/sidebyside_closup.png)
 
 ## 📂 Project Structure
 
