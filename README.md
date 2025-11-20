@@ -22,11 +22,11 @@ Below is an example result on the classic *Baboon* test image.
 
 **Input (Low Resolution)**
 
-![Low Resolution](src/lr_baboon.png)
+![Low Resolution](src/baboon.png)
 
 **Output (SRGAN High Resolution)**
 
-![Super Resolution](src/sr_baboon.png)
+![Super Resolution](src/baboon_pred.png)
 
 ---
 
