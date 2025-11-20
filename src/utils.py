@@ -42,15 +42,18 @@ def save_checkpoint(generator: nn.Module, descriminator: nn.Module, gen_optimize
     
     torch.save(full_state, os.path.join(save_path, f"ckpt_{global_step}.ckpt"))
 
-def load_checkpoint(generator, descriminator, gen_optimizer, desc_optimizer):
+def load_checkpoint(generator, descriminator=None, gen_optimizer=None, desc_optimizer=None, is_infer=False):
     path = Path('checkpoints')
     last_model_path = sorted(list(path.glob("*.ckpt")), key=lambda p: int(p.stem.split("_")[-1]))[-1]
-    
     load_dict = torch.load(last_model_path)
-    generator.load_state_dict(load_dict['gen'])
-    descriminator.load_state_dict(load_dict['desc'])
-    gen_optimizer.load_state_dict(load_dict['gen_optim'])
-    desc_optimizer.load_state_dict(load_dict['desc_optim'])
+
+    if is_infer:
+        generator.load_state_dict(load_dict['gen'])
+    else:
+        generator.load_state_dict(load_dict['gen'])
+        descriminator.load_state_dict(load_dict['desc'])
+        gen_optimizer.load_state_dict(load_dict['gen_optim'])
+        desc_optimizer.load_state_dict(load_dict['desc_optim'])
     return last_model_path
 
 @torch.inference_mode()
