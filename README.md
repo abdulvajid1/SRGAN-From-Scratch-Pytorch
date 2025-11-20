@@ -35,8 +35,7 @@ Below is an example result on the classic *Baboon* test image.
 │   ├── dataset.py
 │   ├── train.py
 │   ├── inference.py
-│   ├── lr_baboon.png
-│   └── sr_baboon.png
+|   ├── utils.py
 ├── README.md
 └── requirements.txt
 ```
