@@ -20,13 +20,8 @@ Although trained briefly on a home GPU setup, the results are promising and demo
 
 Below is an example result on the classic *Baboon* test image.
 
-**Input (Low Resolution)**
-
-![Low Resolution](src/lr_baboon.png)
-
-**Output (SRGAN High Resolution)**
-
-![Super Resolution](src/sr_baboon.png)
+**Input (Low Resolution(resized for side by side)) vs Output**
+![Low Resolution](src/baboon_sidebyside.png)
 
 ---
 
